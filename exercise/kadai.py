@@ -1,36 +1,23 @@
-# In[]:
-
-# これまでに定義した関数の読み込み
+# %%
 from chapter01 import get_string_from_file
 from chapter02 import create_wordcloud, get_japanese_fonts
 
 #%matplotlib inline
 
+# %%
 from janome.analyzer import Analyzer
 from janome.tokenfilter import ExtractAttributeFilter
-#抽出用
 from janome.tokenfilter import POSKeepFilter
 
-
-string = 'この研究室は猫に支配されている'
+string = 'この研究室は猫に支配されている。'
 keep_pos = ['名詞']
-
-#文字列から特徴語(今回は名詞)を抜き出す
 analyzer = Analyzer(token_filters=[POSKeepFilter(keep_pos),
                                    ExtractAttributeFilter('surface')])
 print(list(analyzer.analyze(string)))
 
 
-
+# %%
 def get_words(string, keep_pos=None):
-    """
-    2章の関数の改良版(指定した品詞を適用できる)
-    引数の文字列の形態素解析(指定された品詞で), 後処理
-    
-    Args
-     string: 文字列データ
-     keep_pos: 指定したい品詞(Noneで全て抽出)
-    """
     filters = []
     if keep_pos is None:
         filters.append(POSStopFilter(['記号']))       # 記号を除外
@@ -40,31 +27,23 @@ def get_words(string, keep_pos=None):
     a = Analyzer(token_filters=filters)               # 後処理を指定
     return list(a.analyze(string))
 
-
 from collections import Counter
 
-
-string = get_string_from_file('data/ch02/rasyomon.txt')
+string = get_string_from_file('rasyomon.txt')
 words = get_words(string, keep_pos=['名詞'])
 count = Counter(words)
 font = get_japanese_fonts()[0]
 create_wordcloud(count, font)
 
-
-
-
+# %%
+# Listing 3.6 #
 
 from gensim import corpora
 
+# %%
+# Listing 3.9 #
 
 def build_corpus(file_list, dic_file=None, corpus_file=None):
-    """ コーパスの生成
-    
-    Args
-     file_list: 文書ファイルのリスト
-     dic_file: ファイル指定で辞書を記録（デフォルトNone）
-     corpus_file: ファイル指定でbag-of-wordsを記録（デフォルトNone）
-    """
     docs = []
     for f in file_list:
         text = get_string_from_file(f)
@@ -80,6 +59,11 @@ def build_corpus(file_list, dic_file=None, corpus_file=None):
         corpora.MmCorpus.serialize(corpus_file, bows)
     return dic, bows
 
+
+
+# %%
+# Listing 3.10 #
+
 def bows_to_cfs(bows):
     cfs = dict()
     for b in bows:
@@ -90,43 +74,26 @@ def bows_to_cfs(bows):
     return cfs
 
 def load_dictionary_and_corpus(dic_file, corpus_file):
-    """ 辞書とコーパスを読み込む
-    
-    Args
-     dic_file: 辞書
-     corpus_file: コーパス
-    Return
-     dic: 辞書
-     bows: bag-of-words
-    """
     dic = corpora.Dictionary.load(dic_file)
     bows = list(corpora.MmCorpus(corpus_file))
     if not hasattr(dic, 'cfs'):
         dic.cfs = bows_to_cfs(bows)
     return dic, bows
 
+
+# %%Listing 3.11 #
+
 from gensim import models
 
+
+# %%
+# Listing 3.12 #
+
 def load_aozora_corpus():
-    """ 青空文庫から作成した辞書とbag-of-wordsをファイルから読み出す。
-    
-    Return
-     dic: 辞書
-     bows: bag-of-words
-    """
     return load_dictionary_and_corpus('data/aozora/aozora.dic',
-                                                           'data/aozora/aozora.mm')
+                                      'data/aozora/aozora.mm')
 
 def get_bows(texts, dic, allow_update=False):
-    """ 文字列から名詞を抜き出し、bag-of-wordsを作成する
-    
-    Args
-     texts: 
-     dic: 
-     allow_update: 
-    Return
-     bows: bag-of-words
-    """
     bows = []
     for text in texts:
         words = get_words(text, keep_pos=['名詞'])
@@ -137,15 +104,6 @@ def get_bows(texts, dic, allow_update=False):
 import copy
 
 def add_to_corpus(texts, dic, bows, replicate=False):
-    """ testsの語をコーパス (辞書dicとbag-of-words bow)に追加し,
-    更新されたdic,bowsとtextsのbag-of-wordsを返す
-    
-    Args
-     texts: 新たに追加したい文書集合
-     dic: コーパス(辞書)
-     bows: コーパス(bag-of-words)
-     replicate: Trueにするとdicとbowsを複製し、そこにtextsの情報を追加する（デフォルトFalse）
-    """
     if replicate:
         dic = copy.copy(dic)
         bows = copy.copy(bows)
@@ -153,42 +111,29 @@ def add_to_corpus(texts, dic, bows, replicate=False):
     bows.extend(texts_bows)
     return dic, bows, texts_bows
 
+
+# %%
+# Listing 3.13 #
+
 def get_weights(bows, dic, model, surface=False, N=1000):
-    """ 各語のTF・IDFの重みの計算
-    
-    Args
-     bows: bag-of-words(コーパス)
-     dic: 辞書(コーパス)
-     model: モデル
-     sufface: Trueで語のIDを表層形に変換（デフォルトFlase）
-     N: 重みの降順ソートの上位N個を抽出
-    """
+    # TF・IDFを計算
     weights = model[bows]
+    # TF・IDFの値を基準に降順にソート．最大でN個を抽出
     weights = [sorted(w,key=lambda x:x[1], reverse=True)[:N] for w in weights]
     if surface:
         return [[(dic[x[0]], x[1]) for x in w] for w in weights]
     else:
         return weights
 
-# 青空文庫コーパスの読み込み
+
+# %%
 dic, bows = load_aozora_corpus()
+melos_text = get_string_from_file('rasyomon.txt')
 
-# 「走れメロス」のデータの読み込み
-melos_text = get_string_from_file('data/ch02/rasyomon.txt')
-
-# コーパスへの追加
 dic, bows, melos_bows = add_to_corpus([melos_text], dic, bows)
-
-# modelを作成
 tfidf_model = models.TfidfModel(bows, normalize=True)
-
-# TF・IDFを計算．surface=Trueとして表層形(文字列)への変換を指定
 weights = get_weights(melos_bows, dic, tfidf_model, surface=True)
-
-# get_weightsの返り値をcreate_wordcloudにあわせて辞書型に変換
 count = dict(weights[0])
 
-# ワードクラウドを作成
 font = get_japanese_fonts()[0]
 create_wordcloud(count, font)
-# %%
